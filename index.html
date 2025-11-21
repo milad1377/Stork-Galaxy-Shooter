@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Stork Galaxy Shooter</title>
+<style>
+  :root{ --bg:#050816; --panel:#0b1020; --accent:#00ffd0; --danger:#ff4d6d; }
+  html,body{
+    height:100%; margin:0;
+    background:linear-gradient(180deg,#010410 0%, #03081a 100%);
+    font-family:'Segoe UI', Inter, Arial, sans-serif;
+    color:#e8f7ff; overflow: hidden; touch-action: none; user-select: none;
+  }
+
+  /* UI Layout */
+  #ui {
+    width:100%; max-width:600px; margin:0 auto;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:10px 15px; direction: ltr; position: absolute; top:0; left:0; right:0; z-index: 10;
+    box-sizing: border-box;
+  }
+  #stats-area { display:flex; gap:8px; }
+  .stat-box {
+    background: rgba(0,0,0,0.3); padding:6px 10px;
+    border-radius:8px; font-weight:600; color:#cfeff0; font-size: 13px;
+    display:flex; align-items:center; border: 1px solid rgba(255,255,255,0.08);
+    backdrop-filter: blur(2px);
+  }
+  
+  /* Lives */
+  #lives { display:flex; align-items:center; height: 20px; }
+  #lives img { height:20px; width:auto; margin-right:2px; }
+
+  /* Buttons */
+  #controls { display:flex; gap:8px; align-items:center; }
+  button {
+    background:var(--accent); color:#031018; border:none;
+    padding:8px 16px; border-radius:6px; font-weight:700; cursor:pointer;
+    font-size: 14px; transition: filter 0.2s;
+  }
+  button:active { filter: brightness(0.8); transform: scale(0.95); }
+  .btn-ghost{ background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2); color:#e8f7ff;}
+
+  /* Canvas */
+  canvas{
+    display:block; margin: 0 auto;
+    box-shadow:0 0 30px rgba(0,0,0,0.8);
+    background-color: #000; 
+    background-image: url('galaxy-bg.jpg'); 
+    background-size: cover; background-position: center;
+    /* مهم برای موبایل: */
+    touch-action: none;
+  }
+
+  /* Overlays */
+  #startOverlay, #gameOverOverlay {
+    position:fixed; inset:0; z-index:50;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(2, 6, 23, 0.95); backdrop-filter: blur(8px);
+    padding: 20px;
+  }
+  .panel{
+    background:rgba(255,255,255,0.05); padding:25px;
+    border-radius:24px; text-align:center; border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5); 
+    width: 100%; max-width: 350px;
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  @keyframes popIn { from{transform:scale(0.8);opacity:0;} to{transform:scale(1);opacity:1;} }
+  
+  .logo-img { 
+    max-width: 90%; /* ریسپانسیو برای موبایل */
+    height: auto; margin: 0 auto 15px auto; display: block; 
+  }
+  h1 { margin: 0 0 10px 0; font-size: 26px; background: linear-gradient(to right, #fff, #00ffd0); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  p { color: #94a3b8; margin-bottom: 25px; line-height: 1.5; font-size: 14px; }
+  
+  /* دکمه شروع بزرگتر برای لمس راحت‌تر */
+  #startBtn, #restartBtn {
+    width: 100%; padding: 14px; font-size: 18px; border-radius: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <div id="stats-area">
+    <div class="stat-box" id="lives"></div>
+    <div class="stat-box" id="scoreBox">0</div>
+    <div class="stat-box" id="levelBox">Lvl 1</div>
+  </div>
+  <div id="controls">
+    <button id="muteBtn" class="btn-ghost">🔇</button>
+  </div>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="startOverlay">
+  <div class="panel">
+    <img src="logo.png" alt="Game Logo" class="logo-img" onerror="this.style.display='none'">
+    <h1>Stork Galaxy Shooter</h1>
+    <p>Protect The Defi Galaxy !<br>Drag To Move</p>
+    <button id="startBtn">Play Now</button>
+  </div>
+</div>
+
+<div id="gameOverOverlay" style="display:none">
+  <div class="panel">
+    <h2 style="color:#ff4d6d; margin-top:0; font-size: 28px;">Mission Failed</h2>
+    <p id="finalScoreText" style="font-size: 18px; color: #fff; margin-bottom: 30px;">Score: 0</p>
+    <button id="restartBtn">Try Again</button>
+  </div>
+</div>
+
+<script>
+/* ============================
+   CONFIG & ASSETS
+   ============================ */
+const CONFIG = {
+  lives: 5,
+  eggIcon: 'egg.png'
+};
+
+/* ------------------------------
+   AUDIO SYSTEM
+   ------------------------------ */
+class SFX {
+  constructor() { this.ctx = null; this.muted = false; }
+  init(){ if(!this.ctx) this.ctx = new (window.AudioContext||window.webkitAudioContext)(); }
+  
+  playShot(){ 
+    if(!this.ctx||this.muted) return; 
+    const c=this.ctx, t=c.currentTime;
+    const o=c.createOscillator(), g=c.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(400, t);
+    o.frequency.exponentialRampToValueAtTime(200, t + 0.15);
+    o.connect(g); g.connect(c.destination);
+    g.gain.setValueAtTime(0.01, t);
+    g.gain.linearRampToValueAtTime(0.08, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    o.start(t); o.stop(t + 0.2);
+  }
+
+  playHit(){ 
+    if(!this.ctx||this.muted) return; 
+    const c=this.ctx, t=c.currentTime;
+    const o=c.createOscillator(), g=c.createGain();
+    o.type='sine'; o.frequency.setValueAtTime(100, t);
+    o.frequency.linearRampToValueAtTime(50, t+0.1);
+    o.connect(g); g.connect(c.destination);
+    g.gain.setValueAtTime(0.01, t);
+    g.gain.linearRampToValueAtTime(0.15, t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, t+0.2);
+    o.start(t); o.stop(t+0.25);
+  }
+  
+  playExplode(){ 
+    if(!this.ctx||this.muted) return;
+    const c=this.ctx, t=c.currentTime;
+    const o=c.createOscillator(), g=c.createGain();
+    o.type='triangle'; o.frequency.setValueAtTime(80, t);
+    o.frequency.exponentialRampToValueAtTime(20, t+0.4);
+    o.connect(g); g.connect(c.destination);
+    g.gain.setValueAtTime(0.01, t);
+    g.gain.linearRampToValueAtTime(0.1, t+0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, t+0.5);
+    o.start(t); o.stop(t+0.5);
+  }
+
+  toggleMute(){ this.muted = !this.muted; }
+}
+const sfx = new SFX();
+
+/* ============================
+   ENGINE
+   ============================ */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let W, H;
+let loopId = 0;
+let lastTime = 0;
+
+// State
+const state = {
+  running: false, score: 0, level: 1,
+  highScore: Number(localStorage.getItem("galaxy_highscore")) || 0,
+  bullets: [], enemies: [], enemyBullets: [], particles: []
+};
+
+const player = { 
+  x:0, y:0, w:70, h:70, 
+  speed: 400, cooldown: 0, maxCooldown: 0.20, 
+  lives: CONFIG.lives, invul: 0 
+};
+
+// Asset Preloader
+const ASSETS = {};
+['player.png','enemy1.png','enemy2.png','enemy3.png','enemy4.png','bullet.png','enemy_bullet.png'].forEach(src => {
+  const img = new Image(); img.src = src;
+  img.onload = () => ASSETS[src] = img;
+});
+
+// Resize Optimized for Mobile Fullscreen
+function resize(){
+  W = window.innerWidth;
+  H = window.innerHeight;
+  
+  // محدود کردن عرض برای تبلت/دسکتاپ که خیلی کشیده نشود
+  if(W > 600) {
+    W = 600;
+    canvas.style.margin = "0 auto";
+  } else {
+    canvas.style.margin = "0";
+  }
+
+  canvas.width = W * window.devicePixelRatio;
+  canvas.height = H * window.devicePixelRatio;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ============================
+   LOGIC
+   ============================ */
+function getWeapon(lvl){
+  const tier = Math.min(5, Math.ceil(lvl/2));
+  return { 
+    count: tier === 1 ? 1 : (tier === 2 ? 2 : (tier >= 5 ? 5 : 3)),
+    spread: tier * 2, 
+    speed: 500 + (tier * 50)
+  };
+}
+
+function spawnEnemy(){
+  const r = Math.random();
+  let type = 'basic';
+  if(state.level > 2 && r > 0.7) type = 'tank';
+  if(state.level > 4 && r > 0.85) type = 'fast';
+  if(state.level > 1 && r > 0.5 && r < 0.7) type = 'passive1';
+  if(state.level > 3 && r > 0.4 && r < 0.5) type = 'passive2';
+
+  const size = (type === 'tank') ? 55 : 45;
+  let hp = 1;
+  if(type === 'tank') hp = 3 + Math.floor(state.level/3);
+  if(type === 'passive2') hp = 2;
+
+  state.enemies.push({
+    x: Math.random() * (W - size), y: -60, w: size, h: size,
+    type: type, hp: hp,
+    speed: (Math.random() * 50 + 50) * (1 + state.level * 0.02),
+    reload: Math.random() * 2
+  });
+}
+
+function update(dt){
+  if(!state.running) return;
+
+  // Player Logic
+  if(player.invul > 0) player.invul -= dt;
+  
+  // Keyboard Movement (Fallback)
+  let dx = 0;
+  if(inputs.left) dx = -1;
+  if(inputs.right) dx = 1;
+  player.x += dx * player.speed * dt;
+  player.x = Math.max(0, Math.min(W - player.w, player.x));
+
+  // Shooting
+  if(player.cooldown > 0) player.cooldown -= dt;
+  if(player.cooldown <= 0){
+    const weapon = getWeapon(state.level);
+    player.cooldown = player.maxCooldown;
+    const center = player.x + player.w/2;
+    const startAngle = -90 - ((weapon.count-1)*weapon.spread)/2;
+    
+    for(let i=0; i<weapon.count; i++){
+      const ang = (startAngle + i*weapon.spread) * Math.PI/180;
+      state.bullets.push({
+        x: center - 25, y: player.y, w: 50, h: 80, 
+        vx: Math.cos(ang) * weapon.speed,
+        vy: Math.sin(ang) * weapon.speed
+      });
+    }
+    sfx.playShot();
+  }
+
+  // Bullets
+  for(let i=state.bullets.length-1; i>=0; i--){
+    const b = state.bullets[i];
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    if(b.y < -50 || b.x < -50 || b.x > W+50) state.bullets.splice(i,1);
+  }
+
+  // Enemies
+  for(let i=state.enemies.length-1; i>=0; i--){
+    const e = state.enemies[i];
+    e.y += e.speed * dt;
+
+    // Enemy Shot
+    if(['basic','tank'].includes(e.type)){
+      e.reload -= dt;
+      if(e.reload <= 0){
+        if(Math.random() < 0.4){
+          state.enemyBullets.push({x:e.x+e.w/2-25, y:e.y+e.h, w:50, h:70, vx:0, vy:180});
+        }
+        e.reload = 2 + Math.random();
+      }
+    }
+
+    // Collisions
+    const bIdx = state.bullets.findIndex(b => 
+      b.x < e.x + e.w && b.x + b.w > e.x &&
+      b.y < e.y + e.h && b.y + b.h > e.y
+    );
+
+    if(bIdx !== -1){
+      state.bullets.splice(bIdx, 1);
+      e.hp--; sfx.playHit();
+      if(e.hp <= 0){
+        state.score += (e.type==='tank'?20:10);
+        state.enemies.splice(i, 1);
+        spawnParticles(e.x+e.w/2, e.y+e.h/2, '#ffaa00');
+        sfx.playExplode();
+      }
+      continue;
+    }
+
+    if(player.invul <= 0 && 
+       player.x < e.x + e.w - 10 && player.x + player.w > e.x + 10 &&
+       player.y < e.y + e.h - 10 && player.y + player.h > e.y + 10){
+       hitPlayer(); state.enemies.splice(i, 1);
+    }
+    if(e.y > H){ state.enemies.splice(i, 1); hitPlayer(); }
+  }
+
+  // Enemy Bullets
+  for(let i=state.enemyBullets.length-1; i>=0; i--){
+    const b = state.enemyBullets[i];
+    b.y += b.vy * dt;
+    if(player.invul <= 0 && 
+       b.x < player.x + player.w && b.x + b.w > player.x &&
+       b.y < player.y + player.h && b.y + b.h > player.y){
+       hitPlayer(); state.enemyBullets.splice(i,1);
+    }
+    if(b.y > H) state.enemyBullets.splice(i,1);
+  }
+
+  // Particles
+  for(let i=state.particles.length-1; i>=0; i--){
+    const p = state.particles[i];
+    p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt;
+    if(p.life <= 0) state.particles.splice(i,1);
+  }
+
+  if(state.enemies.length < 3 + Math.floor(state.level/2)) spawnEnemy();
+
+  const threshold = 300 + Math.floor(Math.pow(state.level, 2) * 25);
+  if(state.score >= threshold){ state.level++; sfx.playExplode(); }
+
+  document.getElementById('scoreBox').innerText = ` ${state.score}`;
+  document.getElementById('levelBox').innerText = `Lvl ${state.level}`;
+}
+
+function hitPlayer(){
+  player.lives--; player.invul = 2.0; updateLivesUI();
+  sfx.playHit(); spawnParticles(player.x+player.w/2, player.y+player.h/2, '#00ffd0');
+  if(player.lives <= 0) gameOver();
+}
+
+function spawnParticles(x,y,color){
+  for(let i=0; i<8; i++){
+    const ang = Math.random() * 6.28; const spd = Math.random() * 100;
+    state.particles.push({
+      x:x, y:y, vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd, life: 0.5, color: color
+    });
+  }
+}
+
+/* ============================
+   RENDER
+   ============================ */
+function draw(){
+  ctx.clearRect(0,0,W,H);
+
+  // Stars
+  ctx.fillStyle = '#fff';
+  const t = Date.now() / 1000;
+  for(let i=0; i<50; i++){
+    const x = (i * 137) % W;
+    const y = (i * 223 + t * 100) % H;
+    ctx.globalAlpha = (Math.sin(t + i) + 1) / 2 * 0.5;
+    ctx.fillRect(x, y, 2, 2);
+  }
+  ctx.globalAlpha = 1;
+
+  // Player
+  if(player.invul <= 0 || Math.floor(Date.now()/100)%2){
+    if(ASSETS['player.png']) ctx.drawImage(ASSETS['player.png'], player.x, player.y, player.w, player.h);
+    else { ctx.fillStyle='#00ffd0'; ctx.fillRect(player.x, player.y, player.w, player.h); }
+  }
+
+  // Enemies
+  state.enemies.forEach(e => {
+    let img = ASSETS['enemy1.png'];
+    if(e.type === 'tank') img = ASSETS['enemy2.png'];
+    if(e.type === 'passive1') img = ASSETS['enemy3.png'];
+    if(e.type === 'passive2') img = ASSETS['enemy4.png'];
+    
+    if(img) ctx.drawImage(img, e.x, e.y, e.w, e.h);
+    else { ctx.fillStyle='#ff4d6d'; ctx.fillRect(e.x, e.y, e.w, e.h); }
+  });
+
+  // Bullets
+  state.bullets.forEach(b => {
+    if(ASSETS['bullet.png']) ctx.drawImage(ASSETS['bullet.png'], b.x, b.y, b.w, b.h);
+    else { ctx.fillStyle = '#ffeb3b'; ctx.fillRect(b.x, b.y, b.w, b.h); }
+  });
+  
+  // Enemy Bullets
+  state.enemyBullets.forEach(b => {
+    if(ASSETS['enemy_bullet.png']) ctx.drawImage(ASSETS['enemy_bullet.png'], b.x, b.y, b.w, b.h);
+    else { ctx.fillStyle = '#ff4d6d'; ctx.fillRect(b.x, b.y, b.w, b.h); }
+  });
+
+  // Particles
+  state.particles.forEach(p => {
+    ctx.globalAlpha = p.life * 2; ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 4, 4);
+  });
+  ctx.globalAlpha = 1;
+}
+
+function loop(timestamp){
+  if(!state.running) return;
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+  lastTime = timestamp;
+  update(dt);
+  draw();
+  loopId = requestAnimationFrame(loop);
+}
+
+/* ============================
+   INPUT & CONTROL
+   ============================ */
+const inputs = { left: false, right: false };
+
+function startGame(){
+  sfx.init();
+  document.getElementById('startOverlay').style.display = 'none';
+  document.getElementById('gameOverOverlay').style.display = 'none';
+  
+  state.score = 0; state.level = 1;
+  state.bullets = []; state.enemies = []; state.enemyBullets = [];
+  player.lives = CONFIG.lives;
+  player.x = W/2 - player.w/2;
+  player.y = H - player.h - 20; // کمی بالاتر از پایین صفحه
+  
+  updateLivesUI();
+  state.running = true;
+  lastTime = performance.now();
+  loopId = requestAnimationFrame(loop);
+}
+
+function gameOver(){
+  state.running = false;
+  if(state.score > state.highScore){
+    state.highScore = state.score; localStorage.setItem("galaxy_highscore", state.score);
+  }
+  document.getElementById('finalScoreText').innerText = `Score : ${state.score} | Best : ${state.highScore}`;
+  document.getElementById('gameOverOverlay').style.display = 'flex';
+}
+
+function updateLivesUI(){
+  const div = document.getElementById('lives');
+  div.innerHTML = '';
+  for(let i=0; i<CONFIG.lives; i++){
+    const img = document.createElement('img');
+    img.src = CONFIG.eggIcon;
+    if(i >= player.lives) img.style.opacity = '0.2';
+    div.appendChild(img);
+  }
+}
+
+// Keyboard Support (Desktop)
+window.addEventListener('keydown', e => {
+  if(e.key === 'ArrowLeft') inputs.left = true;
+  if(e.key === 'ArrowRight') inputs.right = true;
+});
+window.addEventListener('keyup', e => {
+  if(e.key === 'ArrowLeft') inputs.left = false;
+  if(e.key === 'ArrowRight') inputs.right = false;
+});
+
+// --- MOBILE TOUCH CONTROLS (NO SNAP) ---
+let dragOffset = 0;
+let isDragging = false;
+
+canvas.addEventListener('pointerdown', e => {
+  e.preventDefault(); // جلوگیری از زوم یا اسکرول
+  isDragging = true;
+  sfx.init();
+  
+  // محاسبه موقعیت لمس
+  const rect = canvas.getBoundingClientRect();
+  const touchX = (e.clientX - rect.left) * (canvas.width / rect.width) / window.devicePixelRatio;
+  
+  // ⭐️ محاسبه فاصله انگشت تا مرکز سفینه (برای حرکت نسبی)
+  // این باعث می‌شود سفینه به زیر انگشت نپرد، بلکه از جایی که هست کشیده شود
+  dragOffset = touchX - player.x;
+});
+
+canvas.addEventListener('pointermove', e => {
+  if (!isDragging) return;
+  e.preventDefault();
+  
+  const rect = canvas.getBoundingClientRect();
+  const touchX = (e.clientX - rect.left) * (canvas.width / rect.width) / window.devicePixelRatio;
+  
+  // اعمال موقعیت جدید با حفظ فاصله اولیه
+  player.x = touchX - dragOffset;
+  
+  // جلوگیری از خروج از صفحه
+  player.x = Math.max(0, Math.min(W - player.w, player.x));
+});
+
+canvas.addEventListener('pointerup', () => isDragging = false);
+canvas.addEventListener('pointercancel', () => isDragging = false);
+// ---------------------------------------
+
+document.getElementById('startBtn').onclick = startGame;
+document.getElementById('restartBtn').onclick = startGame;
+document.getElementById('muteBtn').onclick = () => {
+  sfx.toggleMute();
+  document.getElementById('muteBtn').innerText = sfx.muted ? '🔇' : '🔊';
+};
+
+updateLivesUI();
+</script>
+</body>
+</html>
