@@ -388,7 +388,7 @@ function gameOver(){
   
   if(isMultiplayer){
       // 🔴 CHANGE 1: Update Game Over Title for Multiplayer
-      document.getElementById('gameOverTitle').innerText = "Game Over";
+      document.getElementById('gameOverTitle').innerText = "Final Score";
 
       window.dbUpdate(window.dbRef(window.db, `rooms/${roomId}/players/${playerId}`), {
           score: state.score,
