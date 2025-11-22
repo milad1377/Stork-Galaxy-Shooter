@@ -137,7 +137,8 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-  import { getDatabase, ref, set, push, onValue, update, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
+  // UPDATED: Added 'get' to imports
+  import { getDatabase, ref, set, push, onValue, update, remove, onDisconnect, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAwLl6q9dtuIm78mrCfR0dQRUy49WBNHTc",
@@ -161,6 +162,7 @@
   window.dbUpdate = update;
   window.dbRemove = remove;
   window.dbOnDisconnect = onDisconnect;
+  window.dbGet = get; // UPDATED: Exposed get globally
 </script>
 
 <script>
@@ -387,12 +389,11 @@ function gameOver(){
   document.getElementById('gameOverOverlay').style.display = 'flex';
   
   if(isMultiplayer){
-      // 🔴 CHANGE 1: Update Game Over Title for Multiplayer
       document.getElementById('gameOverTitle').innerText = "Game Ended";
 
       window.dbUpdate(window.dbRef(window.db, `rooms/${roomId}/players/${playerId}`), {
           score: state.score,
-          isDead: true // Set player status as dead
+          isDead: true
       });
       document.getElementById('multiplayerResults').style.display = 'block';
       fetchLeaderboard();
@@ -438,7 +439,7 @@ async function createLobby(){
     await window.dbSet(roomRef, {
         status: 'lobby',
         players: {
-            [playerId]: { name: playerName, score: 0, isHost: true, isDead: false } // Default status
+            [playerId]: { name: playerName, score: 0, isHost: true, isDead: false }
         }
     });
     
@@ -447,6 +448,7 @@ async function createLobby(){
     joiningInProgress = false;
 }
 
+// UPDATED: Function now checks for duplicates before joining
 async function joinLobby(){
     if(joiningInProgress) return;
     joiningInProgress = true;
@@ -454,10 +456,38 @@ async function joinLobby(){
     const btn = document.getElementById('startMultiBtn');
     if(btn) { btn.disabled = true; btn.innerText = "Joining..."; }
 
-    if(!window.db) { alert("Connecting to server... please wait"); joiningInProgress = false; if(btn) {btn.disabled=false; btn.innerText="Join Lobby";} return; }
+    if(!window.db) { 
+        alert("Connecting to server... please wait"); 
+        joiningInProgress = false; 
+        if(btn) {btn.disabled=false; btn.innerText="Join Lobby";} 
+        return; 
+    }
     if(!roomId) return;
     
     playerName = getPlayerName();
+
+    // --- Check Duplicate Name Logic ---
+    try {
+        const roomPlayersRef = window.dbRef(window.db, `rooms/${roomId}/players`);
+        const snapshot = await window.dbGet(roomPlayersRef);
+
+        if (snapshot.exists()) {
+            const players = snapshot.val();
+            const isNameTaken = Object.values(players).some(p => p.name.toLowerCase() === playerName.toLowerCase());
+
+            if (isNameTaken) {
+                alert("این نام کاربری قبلاً در این بازی استفاده شده است! لطفاً نام دیگری انتخاب کنید.");
+                
+                joiningInProgress = false;
+                if(btn) { btn.disabled = false; btn.innerText = "Join Lobby"; }
+                return; // Exit logic
+            }
+        }
+    } catch (error) {
+        console.error("Error checking names:", error);
+    }
+    // --- End Logic ---
+
     playerId = 'p_' + Date.now();
     isHost = false;
     isMultiplayer = true;
@@ -467,7 +497,7 @@ async function joinLobby(){
         name: playerName,
         score: 0,
         isHost: false,
-        isDead: false // Default status
+        isDead: false
     });
     
     showLobbyUI();
@@ -543,10 +573,9 @@ function fetchLeaderboard(){
             else if(index === 2) rankDisplay = '<span class="rank-medal">🥉</span>';
             else rankDisplay = `<span class="rank-text">#${index+1}</span>`;
 
-            // 🔴 CHANGE 2: Display Player Status
             let statusText = '';
             if (p.isDead) {
-                statusText = '<span class="player-status-dead">(✅Final Score)</span>';
+                statusText = '<span class="player-status-dead">(✅ Final Score)</span>';
             } else {
                 statusText = '<span class="player-status-alive">(Playing...)</span>';
             }
@@ -584,11 +613,8 @@ document.getElementById('startMultiBtn').onclick = () => {
 };
 document.getElementById('hostStartBtn').onclick = startMultiplayerGame;
 
-// MAIN MENU BUTTON Logic
 document.getElementById('mainMenuBtn').onclick = () => {
     if(isHost && roomId && window.db){
-        // در صورت تمایل به پاک کردن اتاق در پایان بازی توسط هاست، خط زیر را فعال کنید
-        // window.dbRemove(window.dbRef(window.db, `rooms/${roomId}`));
     }
     location.href = window.location.pathname;
 };
