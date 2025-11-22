@@ -476,7 +476,7 @@ async function joinLobby(){
             const isNameTaken = Object.values(players).some(p => p.name.toLowerCase() === playerName.toLowerCase());
 
             if (isNameTaken) {
-                alert("این نام کاربری قبلاً در این بازی استفاده شده است! لطفاً نام دیگری انتخاب کنید.");
+                alert("This username has already been used in this game! Please choose another name.");
                 
                 joiningInProgress = false;
                 if(btn) { btn.disabled = false; btn.innerText = "Join Lobby"; }
