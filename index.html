@@ -110,7 +110,7 @@
     <h1>Stork Galaxy Shooter</h1>
     <p>Protect The Defi Galaxy!</p>
     
-    <input type="text" id="playerNameInput" placeholder="Enter Your Nickname" maxlength="12">
+    <input type="text" id="playerNameInput" placeholder="Enter Your Discord Username" maxlength="12">
     
     <button id="startSoloBtn" class="full-btn">Start Solo Game</button>
     <button id="startMultiBtn" class="full-btn btn-secondary">Play with Friends</button>
@@ -153,8 +153,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
   import { getDatabase, ref, set, push, onValue, update, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
-
-  // 🔴 تنظیمات دقیق و اصلاح شده شما
+  
   const firebaseConfig = {
     apiKey: "AIzaSyAwLl6q9dtuIm78mrCfR0dQRUy49WBNHTc",
     authDomain: "stork-galaxy-shooter.firebaseapp.com",
@@ -166,11 +165,9 @@
     measurementId: "G-K8HY2GFBQ2"
   };
 
-  // Initialize Firebase
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
   
-  // Export to window so the game script can use it
   window.db = db;
   window.dbRef = ref;
   window.dbSet = set;
@@ -616,3 +613,4 @@ updateLivesUI();
 </script>
 </body>
 </html>
+
