@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
 <title>Stork Galaxy Shooter - Multiplayer</title>
 <style>
-  :root{ --bg:#050816; --panel:#0b1020; --accent:#00ffd0; --danger:#ff4d6d; }
+  :root{ --bg:#050816; --panel:#0b1020; --accent:#00ffd0; --danger:#ff4d6d; --gold:#ffd700; --silver:#c0c0c0; --bronze:#cd7f32; }
   html,body{
     height:100%; margin:0;
     background:linear-gradient(180deg,#010410 0%, #03081a 100%);
@@ -34,6 +34,7 @@
     font-size: 14px; transition: filter 0.2s;
   }
   button:active { filter: brightness(0.8); transform: scale(0.95); }
+  button:disabled { background: #555; color: #888; cursor: not-allowed; transform: none; filter: none; }
   .btn-ghost{ background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2); color:#e8f7ff;}
   .btn-secondary { background: #3b82f6; color: white; }
   canvas{
@@ -71,8 +72,11 @@
   .player-list li { background: rgba(255,255,255,0.1); padding: 8px; margin-bottom: 5px; border-radius: 6px; display: flex; justify-content: space-between; }
   .is-host { color: #ffd700; font-size: 12px; }
   .copy-box { background: #1e293b; padding: 8px; border-radius: 6px; font-family: monospace; font-size: 12px; cursor: pointer; word-break: break-all; margin-bottom: 10px;}
-  .final-lb { width: 100%; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; }
-  .final-lb-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  
+  .final-lb { width: 100%; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; max-height: 200px; overflow-y: auto;}
+  .final-lb-row { display: flex; justify-content: space-between; padding: 8px 5px; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: center;}
+  .rank-medal { font-size: 18px; margin-right: 5px; }
+  .rank-text { color: #94a3b8; margin-right: 5px; font-weight: bold;}
 </style>
 </head>
 <body>
@@ -125,7 +129,7 @@
         <h3>Leaderboard</h3>
         <div class="final-lb" id="finalLeaderboard"></div>
     </div>
-    <button id="restartBtn" class="full-btn" style="margin-top: 15px;">Main Menu</button>
+    <button id="mainMenuBtn" class="full-btn" style="margin-top: 15px;">Main Menu</button>
   </div>
 </div>
 
@@ -195,6 +199,7 @@ let roomId = null;
 let playerId = null;
 let playerName = "Player";
 let isHost = false;
+let joiningInProgress = false; // Preventing double join
 
 const urlParams = new URLSearchParams(window.location.search);
 if(urlParams.get('room')){
@@ -300,8 +305,17 @@ function spawnEnemy(){
 }
 
 function hitPlayer(){
-  player.lives--; player.invul=2.0; updateLivesUI(); sfx.playHit(); spawnParticles(player.x+player.w/2, player.y+player.h/2, '#00ffd0');
-  if(player.lives<=0) gameOver();
+  player.lives--;
+  if(player.lives < 0) player.lives = 0;
+  
+  player.invul=2.0; 
+  updateLivesUI(); 
+  sfx.playHit(); 
+  spawnParticles(player.x+player.w/2, player.y+player.h/2, '#00ffd0');
+  
+  if(player.lives<=0) {
+      gameOver();
+  }
 }
 
 function spawnParticles(x,y,c){
@@ -346,6 +360,10 @@ function loop(ts){
 
 function initGame(){
   sfx.init();
+  // Prevent duplicate loops and weird states
+  cancelAnimationFrame(loopId);
+  state.running = false;
+  
   document.getElementById('startOverlay').style.display = 'none';
   document.getElementById('lobbyOverlay').style.display = 'none';
   document.getElementById('gameOverOverlay').style.display = 'none';
@@ -354,6 +372,7 @@ function initGame(){
   player.lives = CONFIG.lives; player.x = W/2 - player.w/2; player.y = H - player.h - 20;
   
   updateLivesUI();
+  
   state.running = true;
   lastTime = performance.now();
   loopId = requestAnimationFrame(loop);
@@ -361,6 +380,8 @@ function initGame(){
 
 function gameOver(){
   state.running = false;
+  cancelAnimationFrame(loopId); // Stop the game loop completely
+  
   document.getElementById('finalScoreText').innerText = `Score: ${state.score}`;
   document.getElementById('gameOverOverlay').style.display = 'flex';
   
@@ -377,10 +398,12 @@ function gameOver(){
 }
 
 function updateLivesUI(){
-  const div = document.getElementById('lives'); div.innerHTML = '';
+  const div = document.getElementById('lives'); 
+  div.innerHTML = '';
   for(let i=0;i<CONFIG.lives;i++){
     const img=document.createElement('img'); img.src=CONFIG.eggIcon;
-    if(i>=player.lives) img.style.opacity='0.2'; div.appendChild(img);
+    if(i>=player.lives) img.style.opacity='0.2'; 
+    div.appendChild(img);
   }
 }
 
@@ -392,12 +415,23 @@ function getPlayerName(){
 }
 
 async function createLobby(){
-    if(!window.db) { alert("Connecting to server... please wait"); return; }
+    if(joiningInProgress) return;
+    joiningInProgress = true;
+    
+    const btn = document.getElementById('startMultiBtn'); // Or the create button if separate
+    if(btn) { btn.disabled = true; btn.innerText = "Creating..."; }
+
+    if(!window.db) { alert("Connecting to server... please wait"); joiningInProgress = false; if(btn) {btn.disabled=false; btn.innerText="Play with Friends";} return; }
+    
     playerName = getPlayerName();
     playerId = 'host_' + Date.now();
     roomId = 'room_' + Math.floor(Math.random()*10000);
     isHost = true;
     isMultiplayer = true;
+
+    localStorage.setItem('stork_room', roomId);
+    localStorage.setItem('stork_player', playerId);
+    localStorage.setItem('stork_host', 'true');
 
     const roomRef = window.dbRef(window.db, `rooms/${roomId}`);
     await window.dbSet(roomRef, {
@@ -406,17 +440,30 @@ async function createLobby(){
             [playerId]: { name: playerName, score: 0, isHost: true }
         }
     });
+    
     showLobbyUI();
     listenToLobby();
+    joiningInProgress = false;
 }
 
 async function joinLobby(){
-    if(!window.db) { alert("Connecting to server... please wait"); return; }
+    if(joiningInProgress) return;
+    joiningInProgress = true;
+
+    const btn = document.getElementById('startMultiBtn');
+    if(btn) { btn.disabled = true; btn.innerText = "Joining..."; }
+
+    if(!window.db) { alert("Connecting to server... please wait"); joiningInProgress = false; if(btn) {btn.disabled=false; btn.innerText="Join Lobby";} return; }
     if(!roomId) return;
+    
     playerName = getPlayerName();
     playerId = 'p_' + Date.now();
     isHost = false;
     isMultiplayer = true;
+
+    localStorage.setItem('stork_room', roomId);
+    localStorage.setItem('stork_player', playerId);
+    localStorage.setItem('stork_host', 'false');
 
     const playerRef = window.dbRef(window.db, `rooms/${roomId}/players/${playerId}`);
     await window.dbSet(playerRef, {
@@ -424,8 +471,10 @@ async function joinLobby(){
         score: 0,
         isHost: false
     });
+    
     showLobbyUI();
     listenToLobby();
+    joiningInProgress = false;
 }
 
 function showLobbyUI(){
@@ -460,7 +509,8 @@ function listenToLobby(){
                 list.appendChild(li);
             });
         }
-        if(data.status === 'playing' && !state.running){
+        // Check if game started
+        if(data.status === 'playing' && !state.running && player.lives > 0){
             initGame();
         }
     });
@@ -483,11 +533,26 @@ function fetchLeaderboard(){
         const lb = document.getElementById('finalLeaderboard');
         lb.innerHTML = '';
         if(!players) return;
+        
         const sorted = Object.values(players).sort((a,b) => b.score - a.score);
+        
         sorted.forEach((p, index) => {
             const div = document.createElement('div');
             div.className = 'final-lb-row';
-            div.innerHTML = `<span>#${index+1} ${p.name}</span><span style="color:#00ffd0">${p.score}</span>`;
+            
+            let rankDisplay = '';
+            if(index === 0) rankDisplay = '<span class="rank-medal">🥇</span>';
+            else if(index === 1) rankDisplay = '<span class="rank-medal">🥈</span>';
+            else if(index === 2) rankDisplay = '<span class="rank-medal">🥉</span>';
+            else rankDisplay = `<span class="rank-text">#${index+1}</span>`;
+            
+            div.innerHTML = `
+                <div style="display:flex; align-items:center;">
+                    ${rankDisplay} 
+                    <span>${p.name}</span>
+                </div>
+                <span style="color:#00ffd0; font-weight:bold;">${p.score}</span>
+            `;
             lb.appendChild(div);
         });
     });
@@ -500,20 +565,26 @@ window.copyLink = function(){
 
 window.leaveLobby = function(){
     if(isHost && roomId && window.db){
-        window.dbRemove(window.dbRef(window.db, `rooms/${roomId}`));
+        // If host leaves in Lobby, remove room. If playing, keep it.
+        if(!state.running) window.dbRemove(window.dbRef(window.db, `rooms/${roomId}`));
     }
     location.href = window.location.pathname;
 }
 
 document.getElementById('startSoloBtn').onclick = () => { isMultiplayer=false; initGame(); };
 document.getElementById('startMultiBtn').onclick = () => {
+    if(joiningInProgress) return;
     if(roomId) joinLobby();
     else createLobby();
 };
 document.getElementById('hostStartBtn').onclick = startMultiplayerGame;
-document.getElementById('restartBtn').onclick = () => {
+
+// MAIN MENU BUTTON Logic
+document.getElementById('mainMenuBtn').onclick = () => {
+    // Cleanup logic if host
     if(isHost && roomId && window.db){
-        window.dbRemove(window.dbRef(window.db, `rooms/${roomId}`));
+         // Optional: Remove room when host leaves permanently
+         // window.dbRemove(window.dbRef(window.db, `rooms/${roomId}`));
     }
     location.href = window.location.pathname;
 };
