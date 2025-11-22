@@ -388,7 +388,7 @@ function gameOver(){
   
   if(isMultiplayer){
       // 🔴 CHANGE 1: Update Game Over Title for Multiplayer
-      document.getElementById('gameOverTitle').innerText = "Final Score";
+      document.getElementById('gameOverTitle').innerText = "Game Ended";
 
       window.dbUpdate(window.dbRef(window.db, `rooms/${roomId}/players/${playerId}`), {
           score: state.score,
@@ -546,9 +546,9 @@ function fetchLeaderboard(){
             // 🔴 CHANGE 2: Display Player Status
             let statusText = '';
             if (p.isDead) {
-                statusText = '<span class="player-status-dead">(Game Over)</span>';
+                statusText = '<span class="player-status-dead">(✅Final Score)</span>';
             } else {
-                statusText = '<span class="player-status-alive">(Playing)</span>';
+                statusText = '<span class="player-status-alive">(Playing...)</span>';
             }
             
             div.innerHTML = `
