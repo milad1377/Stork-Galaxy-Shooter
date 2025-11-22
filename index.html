@@ -12,8 +12,6 @@
     font-family:'Segoe UI', Inter, Arial, sans-serif;
     color:#e8f7ff; overflow: hidden; touch-action: none; user-select: none;
   }
-
-  /* UI Layout */
   #ui {
     width:100%; max-width:600px; margin:0 auto;
     display:flex; justify-content:space-between; align-items:center;
@@ -27,10 +25,8 @@
     display:flex; align-items:center; border: 1px solid rgba(255,255,255,0.08);
     backdrop-filter: blur(2px);
   }
-  
   #lives { display:flex; align-items:center; height: 20px; }
   #lives img { height:20px; width:auto; margin-right:2px; }
-
   #controls { display:flex; gap:8px; align-items:center; }
   button {
     background:var(--accent); color:#031018; border:none;
@@ -40,7 +36,6 @@
   button:active { filter: brightness(0.8); transform: scale(0.95); }
   .btn-ghost{ background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2); color:#e8f7ff;}
   .btn-secondary { background: #3b82f6; color: white; }
-
   canvas{
     display:block; margin: 0 auto;
     box-shadow:0 0 30px rgba(0,0,0,0.8);
@@ -49,9 +44,7 @@
     background-size: cover; background-position: center;
     touch-action: none;
   }
-
-  /* Overlays & Multiplayer UI */
-  #startOverlay, #gameOverOverlay, #lobbyOverlay, #waitingOverlay {
+  #startOverlay, #gameOverOverlay, #lobbyOverlay {
     position:fixed; inset:0; z-index:50;
     display:flex; align-items:center; justify-content:center;
     background:rgba(2, 6, 23, 0.95); backdrop-filter: blur(8px);
@@ -66,25 +59,18 @@
     display: flex; flex-direction: column; gap: 10px;
   }
   @keyframes popIn { from{transform:scale(0.8);opacity:0;} to{transform:scale(1);opacity:1;} }
-  
   .logo-img { max-width: 90%; height: auto; margin: 0 auto 5px auto; display: block; }
   h1 { margin: 0 0 5px 0; font-size: 26px; background: linear-gradient(to right, #fff, #00ffd0); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
   p { color: #94a3b8; margin-bottom: 15px; line-height: 1.5; font-size: 14px; }
-  
   .full-btn { width: 100%; padding: 12px; font-size: 16px; border-radius: 10px; margin-top: 5px; }
-  
   input[type="text"] {
     width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #334155;
     background: #0f172a; color: white; box-sizing: border-box; margin-bottom: 10px; text-align: center;
   }
-
-  /* Lobby Specifics */
   .player-list { list-style: none; padding: 0; margin: 10px 0; max-height: 150px; overflow-y: auto; text-align: left; }
   .player-list li { background: rgba(255,255,255,0.1); padding: 8px; margin-bottom: 5px; border-radius: 6px; display: flex; justify-content: space-between; }
   .is-host { color: #ffd700; font-size: 12px; }
   .copy-box { background: #1e293b; padding: 8px; border-radius: 6px; font-family: monospace; font-size: 12px; cursor: pointer; word-break: break-all; margin-bottom: 10px;}
-  
-  /* Leaderboard in Game Over */
   .final-lb { width: 100%; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; }
   .final-lb-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
 </style>
@@ -109,9 +95,7 @@
     <img src="logo.png" alt="Game Logo" class="logo-img" onerror="this.style.display='none'">
     <h1>Stork Galaxy Shooter</h1>
     <p>Protect The Defi Galaxy!</p>
-    
-    <input type="text" id="playerNameInput" placeholder="Enter Your Discord Username" maxlength="12">
-    
+    <input type="text" id="playerNameInput" placeholder="Enter Your Nickname" maxlength="12">
     <button id="startSoloBtn" class="full-btn">Start Solo Game</button>
     <button id="startMultiBtn" class="full-btn btn-secondary">Play with Friends</button>
   </div>
@@ -122,10 +106,7 @@
     <h2>Game Lobby</h2>
     <p>Send this link to your friends:</p>
     <div class="copy-box" id="shareLink" onclick="copyLink()">Generating Link...</div>
-    
-    <ul class="player-list" id="lobbyPlayerList">
-      </ul>
-    
+    <ul class="player-list" id="lobbyPlayerList"></ul>
     <div id="hostControls" style="display:none">
         <button id="hostStartBtn" class="full-btn" style="background:#00ffd0; color:#000;">Start Match</button>
     </div>
@@ -140,12 +121,10 @@
   <div class="panel">
     <h2 style="color:#ff4d6d; margin:0;">Mission Failed</h2>
     <p id="finalScoreText" style="font-size: 18px; color: #fff; margin-bottom: 10px;">Score: 0</p>
-    
     <div id="multiplayerResults" style="display:none">
         <h3>Leaderboard</h3>
         <div class="final-lb" id="finalLeaderboard"></div>
     </div>
-
     <button id="restartBtn" class="full-btn" style="margin-top: 15px;">Main Menu</button>
   </div>
 </div>
@@ -153,7 +132,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
   import { getDatabase, ref, set, push, onValue, update, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
-  
+
   const firebaseConfig = {
     apiKey: "AIzaSyAwLl6q9dtuIm78mrCfR0dQRUy49WBNHTc",
     authDomain: "stork-galaxy-shooter.firebaseapp.com",
@@ -176,17 +155,11 @@
   window.dbUpdate = update;
   window.dbRemove = remove;
   window.dbOnDisconnect = onDisconnect;
-  
-  console.log("Firebase Initialized Successfully");
 </script>
 
 <script>
-/* ============================
-   GAME ENGINE & LOGIC
-   ============================ */
 const CONFIG = { lives: 5, eggIcon: 'egg.png' };
 
-/* AUDIO SYSTEM */
 class SFX {
   constructor() { this.ctx = null; this.muted = false; }
   init(){ if(!this.ctx) this.ctx = new (window.AudioContext||window.webkitAudioContext)(); }
@@ -203,7 +176,6 @@ class SFX {
 }
 const sfx = new SFX();
 
-/* VARIABLES */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 let W, H, loopId = 0, lastTime = 0;
@@ -218,14 +190,12 @@ const ASSETS = {};
     const i=new Image(); i.src=s; i.onload=()=>ASSETS[s]=i;
 });
 
-/* MULTIPLAYER STATE */
 let isMultiplayer = false;
 let roomId = null;
 let playerId = null;
 let playerName = "Player";
 let isHost = false;
 
-// URL Check for invite
 const urlParams = new URLSearchParams(window.location.search);
 if(urlParams.get('room')){
     roomId = urlParams.get('room');
@@ -233,9 +203,6 @@ if(urlParams.get('room')){
     document.getElementById('startMultiBtn').innerText = 'Join Lobby';
 }
 
-/* ============================
-   GAME LOOP & LOGIC
-   ============================ */
 function resize(){
   W = window.innerWidth; H = window.innerHeight;
   if(W>600){ W=600; canvas.style.margin="0 auto"; } else { canvas.style.margin="0"; }
@@ -248,13 +215,11 @@ window.addEventListener('resize', resize); resize();
 function update(dt){
   if(!state.running) return;
 
-  // Player
   if(player.invul>0) player.invul-=dt;
   let dx=0; if(inputs.left) dx=-1; if(inputs.right) dx=1;
   player.x += dx * player.speed * dt;
   player.x = Math.max(0, Math.min(W - player.w, player.x));
 
-  // Shooting
   player.cooldown -= dt;
   if(player.cooldown <= 0){
     const weapon = {count: Math.min(5, Math.ceil(state.level/2)), spread: state.level*2, speed: 500+(state.level*50)};
@@ -268,7 +233,6 @@ function update(dt){
     sfx.playShot();
   }
 
-  // Physics
   state.bullets.forEach((b,i) => {
     b.x+=b.vx*dt; b.y+=b.vy*dt;
     if(b.y<-50 || b.x<-50 || b.x>W+50) state.bullets.splice(i,1);
@@ -277,14 +241,12 @@ function update(dt){
   state.enemies.forEach((e,i) => {
     e.y+=e.speed*dt;
     
-    // Enemy Shoot
     e.reload-=dt;
     if(e.reload<=0 && ['basic','tank'].includes(e.type)){
         if(Math.random()<0.4) state.enemyBullets.push({x:e.x+e.w/2-25, y:e.y+e.h, w:50, h:70, vx:0, vy:180});
         e.reload = 2+Math.random();
     }
 
-    // Bullet Hit Enemy
     const bIdx = state.bullets.findIndex(b => b.x < e.x+e.w && b.x+b.w > e.x && b.y < e.y+e.h && b.y+b.h > e.y);
     if(bIdx !== -1){
       state.bullets.splice(bIdx,1); e.hp--; sfx.playHit();
@@ -293,13 +255,11 @@ function update(dt){
         state.enemies.splice(i,1);
         spawnParticles(e.x+e.w/2, e.y+e.h/2, '#ffaa00');
         sfx.playExplode();
-        // 🟡 SYNC SCORE
         if(isMultiplayer && window.dbUpdate) syncScore();
       }
       return;
     }
 
-    // Collision Player
     if(player.invul<=0 && player.x < e.x+e.w-10 && player.x+player.w > e.x+10 && player.y < e.y+e.h-10 && player.y+player.h > e.y+10){
        hitPlayer(); state.enemies.splice(i,1);
     }
@@ -318,11 +278,9 @@ function update(dt){
     p.life-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; if(p.life<=0) state.particles.splice(i,1);
   });
 
-  // Spawner
   if(state.enemies.length < 3 + Math.floor(state.level/2)) spawnEnemy();
   if(state.score >= 300 + Math.floor(Math.pow(state.level, 2) * 25)){ state.level++; sfx.playExplode(); }
 
-  // UI Updates
   document.getElementById('scoreBox').innerText = ` ${state.score}`;
   document.getElementById('levelBox').innerText = `Lvl ${state.level}`;
 }
@@ -355,7 +313,6 @@ function spawnParticles(x,y,c){
 
 function draw(){
   ctx.clearRect(0,0,W,H);
-  // Stars
   const t=Date.now()/1000;
   ctx.fillStyle='#fff';
   for(let i=0;i<50;i++){
@@ -364,13 +321,11 @@ function draw(){
   }
   ctx.globalAlpha=1;
 
-  // Player
   if(player.invul<=0 || Math.floor(Date.now()/100)%2){
     if(ASSETS['player.png']) ctx.drawImage(ASSETS['player.png'], player.x, player.y, player.w, player.h);
     else { ctx.fillStyle='#00ffd0'; ctx.fillRect(player.x, player.y, player.w, player.h); }
   }
 
-  // Enemies & Bullets
   state.enemies.forEach(e => {
     let img = ASSETS['enemy1.png'];
     if(e.type==='tank') img=ASSETS['enemy2.png']; else if(e.type==='passive1') img=ASSETS['enemy3.png']; else if(e.type==='passive2') img=ASSETS['enemy4.png'];
@@ -410,7 +365,6 @@ function gameOver(){
   document.getElementById('gameOverOverlay').style.display = 'flex';
   
   if(isMultiplayer){
-      // Final sync and show leaderboard
       window.dbUpdate(window.dbRef(window.db, `rooms/${roomId}/players/${playerId}`), {
           score: state.score,
           isDead: true
@@ -430,10 +384,6 @@ function updateLivesUI(){
   }
 }
 
-/* ============================
-   MULTIPLAYER LOGIC
-   ============================ */
-
 function getPlayerName(){
     const input = document.getElementById('playerNameInput');
     let name = input.value.trim();
@@ -441,18 +391,14 @@ function getPlayerName(){
     return name;
 }
 
-// 1. Create Lobby
 async function createLobby(){
-    console.log("Creating Lobby...");
     if(!window.db) { alert("Connecting to server... please wait"); return; }
-
     playerName = getPlayerName();
     playerId = 'host_' + Date.now();
     roomId = 'room_' + Math.floor(Math.random()*10000);
     isHost = true;
     isMultiplayer = true;
 
-    // Create room in DB
     const roomRef = window.dbRef(window.db, `rooms/${roomId}`);
     await window.dbSet(roomRef, {
         status: 'lobby',
@@ -460,19 +406,12 @@ async function createLobby(){
             [playerId]: { name: playerName, score: 0, isHost: true }
         }
     });
-
-    // Remove room on disconnect
-    window.dbOnDisconnect(roomRef).remove();
-
     showLobbyUI();
     listenToLobby();
 }
 
-// 2. Join Lobby
 async function joinLobby(){
-    console.log("Joining Lobby...");
     if(!window.db) { alert("Connecting to server... please wait"); return; }
-
     if(!roomId) return;
     playerName = getPlayerName();
     playerId = 'p_' + Date.now();
@@ -485,10 +424,6 @@ async function joinLobby(){
         score: 0,
         isHost: false
     });
-    
-    // Remove player on disconnect
-    window.dbOnDisconnect(playerRef).remove();
-
     showLobbyUI();
     listenToLobby();
 }
@@ -509,16 +444,13 @@ function showLobbyUI(){
 
 function listenToLobby(){
     const roomRef = window.dbRef(window.db, `rooms/${roomId}`);
-    
     window.dbOnValue(roomRef, (snapshot) => {
         const data = snapshot.val();
         if(!data) {
             alert("Room closed by host");
-            location.href = window.location.pathname; // Reload
+            location.href = window.location.pathname;
             return;
         }
-
-        // Update Player List
         const list = document.getElementById('lobbyPlayerList');
         list.innerHTML = '';
         if(data.players){
@@ -528,8 +460,6 @@ function listenToLobby(){
                 list.appendChild(li);
             });
         }
-
-        // Check for Game Start
         if(data.status === 'playing' && !state.running){
             initGame();
         }
@@ -543,9 +473,7 @@ function startMultiplayerGame(){
 
 function syncScore(){
     if(!isMultiplayer || !roomId || !playerId) return;
-    window.dbUpdate(window.dbRef(window.db, `rooms/${roomId}/players/${playerId}`), {
-        score: state.score
-    });
+    window.dbUpdate(window.dbRef(window.db, `rooms/${roomId}/players/${playerId}`), { score: state.score });
 }
 
 function fetchLeaderboard(){
@@ -554,17 +482,12 @@ function fetchLeaderboard(){
         const players = snapshot.val();
         const lb = document.getElementById('finalLeaderboard');
         lb.innerHTML = '';
-        
         if(!players) return;
         const sorted = Object.values(players).sort((a,b) => b.score - a.score);
-        
         sorted.forEach((p, index) => {
             const div = document.createElement('div');
             div.className = 'final-lb-row';
-            div.innerHTML = `
-                <span>#${index+1} ${p.name}</span>
-                <span style="color:#00ffd0">${p.score}</span>
-            `;
+            div.innerHTML = `<span>#${index+1} ${p.name}</span><span style="color:#00ffd0">${p.score}</span>`;
             lb.appendChild(div);
         });
     });
@@ -576,20 +499,25 @@ window.copyLink = function(){
 }
 
 window.leaveLobby = function(){
+    if(isHost && roomId && window.db){
+        window.dbRemove(window.dbRef(window.db, `rooms/${roomId}`));
+    }
     location.href = window.location.pathname;
 }
 
-/* INPUTS */
 document.getElementById('startSoloBtn').onclick = () => { isMultiplayer=false; initGame(); };
 document.getElementById('startMultiBtn').onclick = () => {
     if(roomId) joinLobby();
     else createLobby();
 };
 document.getElementById('hostStartBtn').onclick = startMultiplayerGame;
+document.getElementById('restartBtn').onclick = () => {
+    if(isHost && roomId && window.db){
+        window.dbRemove(window.dbRef(window.db, `rooms/${roomId}`));
+    }
+    location.href = window.location.pathname;
+};
 
-document.getElementById('restartBtn').onclick = () => location.href = window.location.pathname; // Reload page for clean state
-
-/* TOUCH CONTROLS */
 let dragOffset = 0, isDragging = false;
 canvas.addEventListener('pointerdown', e => {
   e.preventDefault(); isDragging = true; sfx.init();
@@ -608,9 +536,7 @@ canvas.addEventListener('pointercancel', () => isDragging = false);
 window.addEventListener('keydown', e => { if(e.key==='ArrowLeft') inputs.left=true; if(e.key==='ArrowRight') inputs.right=true; });
 window.addEventListener('keyup', e => { if(e.key==='ArrowLeft') inputs.left=false; if(e.key==='ArrowRight') inputs.right=false; });
 document.getElementById('muteBtn').onclick = () => { sfx.toggleMute(); document.getElementById('muteBtn').innerText=sfx.muted?'🔇':'🔊'; };
-
 updateLivesUI();
 </script>
 </body>
 </html>
-
