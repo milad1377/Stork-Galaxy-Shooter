@@ -64,10 +64,15 @@
   h1 { margin: 0 0 5px 0; font-size: 26px; background: linear-gradient(to right, #fff, #00ffd0); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
   p { color: #94a3b8; margin-bottom: 15px; line-height: 1.5; font-size: 14px; }
   .full-btn { width: 100%; padding: 12px; font-size: 16px; border-radius: 10px; margin-top: 5px; }
+  
+  /* استایل جدید برای اینپوت که وسط قرار گرفته */
   input[type="text"] {
     width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #334155;
-    background: #0f172a; color: white; box-sizing: border-box; margin-bottom: 10px; text-align: center;
+    background: #0f172a; color: white; box-sizing: border-box; 
+    margin: 10px 0; /* فاصله از بالا و پایین */
+    text-align: center;
   }
+  
   .player-list { list-style: none; padding: 0; margin: 10px 0; max-height: 150px; overflow-y: auto; text-align: left; }
   .player-list li { background: rgba(255,255,255,0.1); padding: 8px; margin-bottom: 5px; border-radius: 6px; display: flex; justify-content: space-between; }
   .is-host { color: #ffd700; font-size: 12px; }
@@ -79,6 +84,7 @@
   .rank-text { color: #94a3b8; margin-right: 5px; font-weight: bold;}
   .player-status-dead { color: var(--danger); font-size: 11px; margin-left: 10px; }
   .player-status-alive { color: var(--accent); font-size: 11px; margin-left: 10px; }
+  #lobbyCount { font-size: 14px; color: #00ffd0; margin-left: 5px; }
 </style>
 </head>
 <body>
@@ -101,15 +107,18 @@
     <img src="logo.png" alt="Game Logo" class="logo-img" onerror="this.style.display='none'">
     <h1>Stork Galaxy Shooter</h1>
     <p>Protect The Defi Galaxy!</p>
-    <input type="text" id="playerNameInput" placeholder="Enter Your Discord Username" maxlength="12">
+    
     <button id="startSoloBtn" class="full-btn">Start Solo Game</button>
+    
+    <input type="text" id="playerNameInput" placeholder="Enter Your Discord Username" maxlength="12">
+    
     <button id="startMultiBtn" class="full-btn btn-secondary">Play with Friends</button>
   </div>
 </div>
 
 <div id="lobbyOverlay" style="display:none">
   <div class="panel">
-    <h2>Game Lobby</h2>
+    <h2>Game Lobby <span id="lobbyCount">(0)</span></h2>
     <p>Send this link to your friends:</p>
     <div class="copy-box" id="shareLink" onclick="copyLink()">Generating Link...</div>
     <ul class="player-list" id="lobbyPlayerList"></ul>
@@ -137,7 +146,6 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-  // UPDATED: Added 'get' to imports
   import { getDatabase, ref, set, push, onValue, update, remove, onDisconnect, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
   const firebaseConfig = {
@@ -162,7 +170,7 @@
   window.dbUpdate = update;
   window.dbRemove = remove;
   window.dbOnDisconnect = onDisconnect;
-  window.dbGet = get; // UPDATED: Exposed get globally
+  window.dbGet = get;
 </script>
 
 <script>
@@ -415,21 +423,26 @@ function updateLivesUI(){
 
 function getPlayerName(){
     const input = document.getElementById('playerNameInput');
-    let name = input.value.trim();
-    if(!name) name = "Stork_" + Math.floor(Math.random()*1000);
-    return name;
+    return input.value.trim(); // Now returns empty string if blank
 }
 
 async function createLobby(){
     if(joiningInProgress) return;
-    joiningInProgress = true;
     
+    // VALIDATION: Check Name
+    playerName = getPlayerName();
+    if(!playerName) {
+        alert("Please enter a username first!");
+        document.getElementById('playerNameInput').focus();
+        return;
+    }
+
+    joiningInProgress = true;
     const btn = document.getElementById('startMultiBtn');
     if(btn) { btn.disabled = true; btn.innerText = "Creating..."; }
 
     if(!window.db) { alert("Connecting to server... please wait"); joiningInProgress = false; if(btn) {btn.disabled=false; btn.innerText="Play with Friends";} return; }
     
-    playerName = getPlayerName();
     playerId = 'host_' + Date.now();
     roomId = 'room_' + Math.floor(Math.random()*10000);
     isHost = true;
@@ -448,9 +461,17 @@ async function createLobby(){
     joiningInProgress = false;
 }
 
-// UPDATED: Function now checks for duplicates before joining
 async function joinLobby(){
     if(joiningInProgress) return;
+
+    // VALIDATION: Check Name
+    playerName = getPlayerName();
+    if(!playerName) {
+        alert("Please enter a username first!");
+        document.getElementById('playerNameInput').focus();
+        return;
+    }
+
     joiningInProgress = true;
 
     const btn = document.getElementById('startMultiBtn');
@@ -464,23 +485,21 @@ async function joinLobby(){
     }
     if(!roomId) return;
     
-    playerName = getPlayerName();
-
-    // --- Check Duplicate Name Logic ---
+    // --- Check Duplicate Name Logic (Case Insensitive) ---
     try {
         const roomPlayersRef = window.dbRef(window.db, `rooms/${roomId}/players`);
         const snapshot = await window.dbGet(roomPlayersRef);
 
         if (snapshot.exists()) {
             const players = snapshot.val();
+            // Check against lowercase version of names
             const isNameTaken = Object.values(players).some(p => p.name.toLowerCase() === playerName.toLowerCase());
 
             if (isNameTaken) {
-                alert("This username has already been used in this game! Please choose another name.");
-                
+                alert("This username is already taken in this lobby! Please choose another.");
                 joiningInProgress = false;
                 if(btn) { btn.disabled = false; btn.innerText = "Join Lobby"; }
-                return; // Exit logic
+                return; // STOP HERE
             }
         }
     } catch (error) {
@@ -528,15 +547,26 @@ function listenToLobby(){
             location.href = window.location.pathname;
             return;
         }
+        
+        // Update Player List
         const list = document.getElementById('lobbyPlayerList');
         list.innerHTML = '';
+        let playerCount = 0;
+        
         if(data.players){
-            Object.values(data.players).forEach(p => {
+            const playersArray = Object.values(data.players);
+            playerCount = playersArray.length;
+            
+            playersArray.forEach(p => {
                 const li = document.createElement('li');
                 li.innerHTML = `<span>${p.name}</span> ${p.isHost ? '<span class="is-host">HOST</span>' : ''}`;
                 list.appendChild(li);
             });
         }
+        
+        // Update Lobby Count UI
+        document.getElementById('lobbyCount').innerText = `(${playerCount} Player${playerCount!==1?'s':''})`;
+
         if(data.status === 'playing' && !state.running && player.lives > 0){
             initGame();
         }
@@ -605,7 +635,13 @@ window.leaveLobby = function(){
     location.href = window.location.pathname;
 }
 
-document.getElementById('startSoloBtn').onclick = () => { isMultiplayer=false; initGame(); };
+document.getElementById('startSoloBtn').onclick = () => { 
+    // Solo can play without name or with default name if empty
+    playerName = getPlayerName() || "Solo_Player"; 
+    isMultiplayer=false; 
+    initGame(); 
+};
+
 document.getElementById('startMultiBtn').onclick = () => {
     if(joiningInProgress) return;
     if(roomId) joinLobby();
